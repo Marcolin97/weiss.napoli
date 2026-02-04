@@ -1,0 +1,48 @@
+services:
+  weiss-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: weiss-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - weiss_sql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  weiss-api:
+    build:
+      context: ./backend/Weiss.Api
+      dockerfile: Dockerfile
+    container_name: weiss-api
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Default: "Server=weiss-db,1433;Database=WeissNapoli;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False"
+    depends_on:
+      weiss-db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  weiss-web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: weiss-web
+    environment:
+      NUXT_PUBLIC_API_BASE: "http://localhost:8080"
+      NUXT_HOST: "0.0.0.0"
+      NUXT_PORT: "3000"
+    depends_on:
+      - weiss-api
+    ports:
+      - "3000:3000"
+
+volumes:
+  weiss_sql_data:
